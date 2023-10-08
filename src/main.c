@@ -16,81 +16,120 @@
 
 int main(int argc, char *argv[])
 {
-	Byte *buf = calloc(BUFFER_SIZE, sizeof(Byte));
-	int buf_index = 0;
+#if 0
+	argc = 2;
+	argv[1] = "../examples/life.bf";
+#endif
+	char *code; //malloc later
+	long code_size;
+	{
+		FILE *fp;
+		if (argc != 2 || (fp = fopen(argv[1], "rb")) == NULL) {
+			fprintf(stderr,
+				"Invalid Arguments.\n"
+				"Usage: %s [FILE]\n",
+				argv[0]);
+			exit(EXIT_FAILURE);
+		}
 
-	FILE *fp_code;
-	if (argc != 2 || (fp_code = fopen(argv[1], "r")) == NULL) {
-		fprintf(stderr,
-			"Invalid Arguments.\n"
-			"Usage: %s [FILE]\n",
-			argv[0]);
-		exit(EXIT_FAILURE);
+		long fstart = ftell(fp);
+		if (fseek(fp, 0, SEEK_END))
+			goto err;
+		long fend = ftell(fp);
+		if (fseek(fp, 0, SEEK_SET))
+			goto err;
+
+		code_size = fend - fstart;
+
+		if ((code = malloc(sizeof(char) * code_size + 1)) == NULL)
+			goto err;
+
+		fread(code, sizeof(char), code_size, fp);
+
+		if (0) {
+err:
+			fprintf(stderr,
+				"Error: Something went wrong. Try again\n");
+			exit(EXIT_FAILURE);
+		}
+		fclose(fp);
 	}
 
-	for (int ch; (ch = fgetc(fp_code)) != EOF;) {
-		switch (ch) {
+	Byte *buf = calloc(BUFFER_SIZE, sizeof(Byte));
+	int buf_ind = 0;
+
+	for (int i = 0; code[i] != '\0'; i++) {
+		switch (code[i]) {
 		case '>':
-			if (buf_index + 1 >= BUFFER_SIZE) {
+			if (buf_ind + 1 >= BUFFER_SIZE) {
 				fprintf(stderr, "\nPointer Out-of-Bounds\n");
 				exit(EXIT_FAILURE);
 			}
-			buf_index++;
+			buf_ind++;
 			break;
 		case '<':
-			if (buf_index - 1 < 0) {
+			if (buf_ind - 1 < 0) {
 				fprintf(stderr, "\nPointer Out-of-Bounds\n");
 				exit(EXIT_FAILURE);
 			}
-			buf_index--;
+			buf_ind--;
 			break;
 		case '+':
-			buf[buf_index]++;
+			buf[buf_ind]++;
 			break;
 		case '-':
-			buf[buf_index]--;
+			buf[buf_ind]--;
 			break;
 		case '[':
-			if (buf[buf_index] == 0) {
+			if (buf[buf_ind] == 0) {
 				int brackets = 0;
-				for (;;) {
-					ch = fgetc(fp_code);
-					if ((ch == ']' && brackets == 0) ||
-					    ch == EOF)
+				for (int ch, j = i + 1; j < code_size; j++) {
+					ch = code[j];
+					if (ch == ']' && brackets == 0) {
+						i = j;
 						break;
-					else if (ch == '[')
+					} else if (ch == '[')
 						brackets++;
 					else if (ch == ']')
 						brackets--;
 				}
+				if (brackets != 0) {
+					fprintf(stderr,
+						"Expected ']' somewhere\n");
+					exit(EXIT_FAILURE);
+				}
 			}
 			break;
 		case ']':
-			if (buf[buf_index] != 0) { //jump to '['
+			if (buf[buf_ind] != 0) { //jump to '['
 				int brackets = 0;
-				for (;;) {
-					fseek(fp_code, -2, SEEK_CUR);
-					ch = fgetc(fp_code);
-					if ((ch == '[' && brackets == 0) ||
-					    ch == EOF)
+				for (int ch, j = i - 1; j >= 0; j--) {
+					ch = code[j];
+					if (ch == '[' && brackets == 0) {
+						i = j;
 						break;
-					else if (ch == '[')
+					} else if (ch == '[')
 						brackets++;
 					else if (ch == ']')
 						brackets--;
 				};
+				if (brackets != 0) {
+					fprintf(stderr,
+						"Expected ']' somewhere\n");
+					exit(EXIT_FAILURE);
+				}
 			}
 			break;
 		case ',':
-			buf[buf_index] = getchar();
+			buf[buf_ind] = getchar();
 			break;
 		case '.':
-			putchar(buf[buf_index]);
+			putchar(buf[buf_ind]);
 			break;
 		}
 	}
+	free(code);
 	free(buf);
-	fclose(fp_code);
 
 	return EXIT_SUCCESS;
 }
